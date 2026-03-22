@@ -35,6 +35,16 @@ const defaultStatements = [
   "Never have I ever skipped a meal at the cookhouse",
   "Never have I ever done 10 push-ups in a row",
   "Never have I ever complained about the bunk conditions",
+  "Never have I ever been caught talking during lights out",
+  "Never have I ever used the 'I thought it was a rest day' excuse",
+  "Never have I ever pretended to know how to do a task during training",
+  "Never have I ever been caught sneaking out of camp",
+  "Never have I ever used the 'I thought we were doing admin' excuse",
+  "Never have I ever had a secret stash of snacks in my locker",
+  "Never have I ever been caught slacking off during work",
+  "Never have I ever pretended to know how to do a task during training",
+  "Never have I ever thought of kissing a guy",
+  "Never have I ever thought of kissing a girl",
 ];
 
 const NeverHaveIEver = () => {

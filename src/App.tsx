@@ -11,6 +11,8 @@ import NeverHaveIEver from "./pages/NeverHaveIEver.tsx";
 import WouldYouRather from "./pages/WouldYouRather.tsx";
 import HotSeat from "./pages/HotSeat.tsx";
 import Socials from "./pages/Socials.tsx";
+import InfiniteTicTacToe from "./pages/InfiniteTicTacToe.tsx";
+import Werewolf from "./pages/Werewolf.tsx";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +29,8 @@ const App = () => (
           <Route path="/would-you-rather" element={<WouldYouRather />} />
           <Route path="/hot-seat" element={<HotSeat />} />
           <Route path="/word-imposter" element={<WordImposter />} />
+          <Route path="/infinite-tic-tac-toe" element={<InfiniteTicTacToe />} />
+          <Route path="/werewolf" element={<Werewolf />} />
           <Route path="/socials" element={<Socials />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

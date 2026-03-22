@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Flame, MessageCircle, HelpCircle, Zap, Users, ChevronRight, EyeOff, Search, Star } from "lucide-react";
+import { Flame, MessageCircle, HelpCircle, Zap, Users, ChevronRight, EyeOff, Search, Star, Infinity as InfinityIcon, Moon } from "lucide-react";
 
 const FAVORITE_GAMES_STORAGE_KEY = "favorite_games";
 
@@ -134,6 +134,24 @@ const games: GameItem[] = [
     colorClass: "bg-primary/15 text-primary",
     glowClass: "hover:shadow-primary/10",
     path: "/word-imposter",
+  },
+  {
+    title: "Infinite Tic Tac Toe",
+    description: "2 players only. After your 4th move, your oldest mark disappears. Keep playing till someone wins.",
+    players: "2 players",
+    icon: <InfinityIcon className="w-6 h-6" />,
+    colorClass: "bg-game-dare/15 text-game-dare",
+    glowClass: "hover:shadow-game-dare/10",
+    path: "/infinite-tic-tac-toe",
+  },
+  {
+    title: "Werewolf",
+    description: "Moderator-led social deduction with optional Doctor and Seer, plus scalable werewolf count.",
+    players: "5+ players",
+    icon: <Moon className="w-6 h-6" />,
+    colorClass: "bg-game-hotseat/15 text-game-hotseat",
+    glowClass: "hover:shadow-game-hotseat/10",
+    path: "/werewolf",
   },
 ];
 
