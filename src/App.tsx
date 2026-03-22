@@ -25,6 +25,7 @@ const App = () => (
           <Route path="/never-have-i-ever" element={<NeverHaveIEver />} />
           <Route path="/would-you-rather" element={<WouldYouRather />} />
           <Route path="/hot-seat" element={<HotSeat />} />
+          <Route path="/word-imposter" element={<WordImposter />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

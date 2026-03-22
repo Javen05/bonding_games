@@ -79,6 +79,15 @@ const games = [
     glowClass: "hover:shadow-game-hotseat/10",
     path: "/hot-seat",
   },
+  {
+    title: "Word Imposter",
+    description: "One word, one liar. Describe without revealing — find the fake.",
+    players: "3–20 players",
+    icon: <EyeOff className="w-6 h-6" />,
+    colorClass: "bg-primary/15 text-primary",
+    glowClass: "hover:shadow-primary/10",
+    path: "/word-imposter",
+  },
 ];
 
 const Index = () => {
