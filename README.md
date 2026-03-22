@@ -4,7 +4,7 @@ Offline-first social party games to bond with friends in real life.
 
 ## Inspiration
 
-As I was locked up in a military camp 5 days a week against my will as part of National Service, social games became one of the few ways my bunkmates and I could destress and stay sane during our free time. When searching for apps that offered such games, most options were bloated with ads, locked behind paywalls, or had too little flexibility for customization to meet our gameplay needs. Therefore, I made something simple, fast, and actually useful for real-world hangouts.
+While I was locked up in a military camp 5 days a week against my will as part of National Service, social games became one of the few ways my bunkmates and I could destress and stay sane during our free time. When searching for apps that offered such games, most options were bloated with ads, locked behind paywalls, or had too little flexibility for customization to meet our gameplay needs. Therefore, I made something simple, fast, and actually useful for real-world hangouts.
 
 ## Live App
 
