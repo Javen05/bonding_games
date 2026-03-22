@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Flame, MessageCircle, HelpCircle, Zap, Users, ChevronRight } from "lucide-react";
+import { Flame, MessageCircle, HelpCircle, Zap, Users, ChevronRight, EyeOff } from "lucide-react";
 
 interface GameCardProps {
   title: string;
