@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import WordImposter from "./pages/WordImposter.tsx";
 import TruthOrDare from "./pages/TruthOrDare.tsx";
 import NeverHaveIEver from "./pages/NeverHaveIEver.tsx";
 import WouldYouRather from "./pages/WouldYouRather.tsx";
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/never-have-i-ever" element={<NeverHaveIEver />} />
           <Route path="/would-you-rather" element={<WouldYouRather />} />
           <Route path="/hot-seat" element={<HotSeat />} />
+          <Route path="/word-imposter" element={<WordImposter />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

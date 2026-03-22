@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Flame, MessageCircle, HelpCircle, Zap, Users, ChevronRight } from "lucide-react";
+import { Flame, MessageCircle, HelpCircle, Zap, Users, ChevronRight, EyeOff } from "lucide-react";
 
 interface GameCardProps {
   title: string;
@@ -78,6 +78,15 @@ const games = [
     colorClass: "bg-game-hotseat/15 text-game-hotseat",
     glowClass: "hover:shadow-game-hotseat/10",
     path: "/hot-seat",
+  },
+  {
+    title: "Word Imposter",
+    description: "One word, one liar. Describe without revealing — find the fake.",
+    players: "3–20 players",
+    icon: <EyeOff className="w-6 h-6" />,
+    colorClass: "bg-primary/15 text-primary",
+    glowClass: "hover:shadow-primary/10",
+    path: "/word-imposter",
   },
 ];
 
