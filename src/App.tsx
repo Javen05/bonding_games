@@ -10,6 +10,7 @@ import TruthOrDare from "./pages/TruthOrDare.tsx";
 import NeverHaveIEver from "./pages/NeverHaveIEver.tsx";
 import WouldYouRather from "./pages/WouldYouRather.tsx";
 import HotSeat from "./pages/HotSeat.tsx";
+import Socials from "./pages/Socials.tsx";
 
 const queryClient = new QueryClient();
 
@@ -18,7 +19,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/truth-or-dare" element={<TruthOrDare />} />
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/would-you-rather" element={<WouldYouRather />} />
           <Route path="/hot-seat" element={<HotSeat />} />
           <Route path="/word-imposter" element={<WordImposter />} />
+          <Route path="/socials" element={<Socials />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -1,16 +1,29 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Eye, EyeOff, Play, Settings2, UserPlus, X, RotateCcw, ChevronRight } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Play, Settings2, UserPlus, X, RotateCcw, ChevronRight, Clock, Zap, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { addCustomQuestion, getCustomQuestions, removeCustomQuestion } from "@/lib/gameUtils";
 
 type ImposterHint = "nothing" | "theme" | "similar";
+type DiscussionOrder = "random" | "added";
+
+const WORD_PACK_STORAGE_KEY = "word-imposter-words";
 
 interface GameSettings {
   imposterCount: number;
   imposterHint: ImposterHint;
+  discussionOrder: DiscussionOrder;
+  timerEnabled: boolean;
+  timerSeconds: number;
 }
 
-const wordPacks: { word: string; theme: string; similar: string }[] = [
+interface WordPack {
+  word: string;
+  theme: string;
+  similar: string;
+}
+
+const defaultWordPacks: WordPack[] = [
   { word: "Durian", theme: "Food", similar: "Jackfruit" },
   { word: "Tekong", theme: "Places in Singapore", similar: "Sentosa" },
   { word: "Guard Duty", theme: "NS Activities", similar: "Prowling" },
@@ -39,21 +52,72 @@ const wordPacks: { word: string; theme: string; similar: string }[] = [
   { word: "Signal Flare", theme: "Field Equipment", similar: "Smoke Grenade" },
   { word: "Netflix", theme: "Entertainment", similar: "YouTube" },
   { word: "Bubble Tea", theme: "Drinks", similar: "Koi" },
+  { word: "Singapore Flyer", theme: "Attractions", similar: "ArtScience Museum" },
+  { word: "NS Life", theme: "Military", similar: "Army" },
 ];
 
 const WordImposter = () => {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<"setup" | "settings" | "reveal" | "discussion">("setup");
+  const [phase, setPhase] = useState<"setup" | "settings" | "reveal" | "discussion" | "voting" | "vote-out" | "result" | "game-over">("setup");
   const [players, setPlayers] = useState<string[]>([]);
   const [newPlayer, setNewPlayer] = useState("");
-  const [settings, setSettings] = useState<GameSettings>({ imposterCount: 1, imposterHint: "nothing" });
+  const [settings, setSettings] = useState<GameSettings>({ imposterCount: 1, imposterHint: "nothing", discussionOrder: "random", timerEnabled: false, timerSeconds: 120 });
+  const [timeLeft, setTimeLeft] = useState(120);
+  const [newWord, setNewWord] = useState("");
+  const [newTheme, setNewTheme] = useState("");
+  const [newSimilarWord, setNewSimilarWord] = useState("");
+  const [showAddWords, setShowAddWords] = useState(false);
   
   // Game state
   const [assignments, setAssignments] = useState<{ name: string; isImposter: boolean; text: string }[]>([]);
   const [revealIndex, setRevealIndex] = useState(0);
   const [cardRevealed, setCardRevealed] = useState(false);
   const [animKey, setAnimKey] = useState(0);
-  const [currentWord, setCurrentWord] = useState<typeof wordPacks[0] | null>(null);
+  const [currentWord, setCurrentWord] = useState<WordPack | null>(null);
+  const [customWordPacks, setCustomWordPacks] = useState<WordPack[]>([]);
+  const [allWordPacks, setAllWordPacks] = useState<WordPack[]>(defaultWordPacks);
+  const [discussionQueue, setDiscussionQueue] = useState<string[]>([]);
+  const currentGameDiscussionSeedRef = useRef(0);
+  const nextGameDiscussionSeedRef = useRef(0);
+  const [votes, setVotes] = useState<Record<string, number>>({});
+  const [votingRound, setVotingRound] = useState(1);
+  const [selectedVoteOut, setSelectedVoteOut] = useState<string | null>(null);
+  const [eliminatedPlayers, setEliminatedPlayers] = useState<string[]>([]);
+  const [revealedWords, setRevealedWords] = useState(false);
+
+  const refreshWordPacks = useCallback(() => {
+    const custom = getCustomQuestions(WORD_PACK_STORAGE_KEY)
+      .map((q) => {
+        const [word, theme, similar] = q.split("|").map((v) => v.trim());
+        if (!word || !theme || !similar) return null;
+        return { word, theme, similar } as WordPack;
+      })
+      .filter(Boolean) as WordPack[];
+
+    setCustomWordPacks(custom);
+    setAllWordPacks([...defaultWordPacks, ...custom]);
+  }, []);
+
+  useEffect(() => {
+    refreshWordPacks();
+  }, [refreshWordPacks]);
+
+  useEffect(() => {
+    if (!settings.timerEnabled || phase !== "discussion") return;
+    
+    const timer = setInterval(() => {
+      setTimeLeft((t) => {
+        if (t <= 1) {
+          setPhase("voting");
+          setVotes({});
+          return settings.timerSeconds;
+        }
+        return t - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [settings.timerEnabled, phase, settings.timerSeconds]);
 
   const addPlayer = useCallback(() => {
     const name = newPlayer.trim();
@@ -69,9 +133,50 @@ const WordImposter = () => {
 
   const maxImposters = Math.max(1, Math.floor(players.length / 2) - 1);
   const validImposterCount = Math.min(settings.imposterCount, maxImposters);
+  const maxVotingRounds = Math.max(
+    validImposterCount + 1,
+    Math.min(players.length - 1, Math.max(2, Math.ceil(players.length / 2)))
+  );
+
+  const buildDiscussionQueue = useCallback((seed: number, eliminatedSnapshot?: string[]) => {
+    const eliminated = eliminatedSnapshot ?? eliminatedPlayers;
+    const activePlayers = players.filter((p) => !eliminated.includes(p));
+    if (settings.discussionOrder === "added") {
+      if (activePlayers.length === 0) return [];
+      const offset = seed % activePlayers.length;
+      return [...activePlayers.slice(offset), ...activePlayers.slice(0, offset)];
+    }
+    return [...activePlayers].sort(() => Math.random() - 0.5);
+  }, [players, eliminatedPlayers, settings.discussionOrder]);
+
+  const enterDiscussionPhase = useCallback((eliminatedSnapshot?: string[]) => {
+    setDiscussionQueue(buildDiscussionQueue(currentGameDiscussionSeedRef.current, eliminatedSnapshot));
+    setTimeLeft(settings.timerSeconds);
+    setPhase("discussion");
+    setAnimKey((k) => k + 1);
+  }, [buildDiscussionQueue, settings.timerSeconds]);
+
+  const addWordPackHandler = useCallback(() => {
+    const word = newWord.trim();
+    const theme = newTheme.trim();
+    const similar = newSimilarWord.trim();
+    if (!word || !theme || !similar) return;
+
+    addCustomQuestion(WORD_PACK_STORAGE_KEY, `${word} | ${theme} | ${similar}`);
+    setNewWord("");
+    setNewTheme("");
+    setNewSimilarWord("");
+    refreshWordPacks();
+  }, [newWord, newTheme, newSimilarWord, refreshWordPacks]);
+
+  const removeWordPackHandler = useCallback((pack: WordPack) => {
+    removeCustomQuestion(WORD_PACK_STORAGE_KEY, `${pack.word} | ${pack.theme} | ${pack.similar}`);
+    refreshWordPacks();
+  }, [refreshWordPacks]);
 
   const startGame = useCallback(() => {
-    const wordData = wordPacks[Math.floor(Math.random() * wordPacks.length)];
+    const sourcePacks = allWordPacks.length > 0 ? allWordPacks : defaultWordPacks;
+    const wordData = sourcePacks[Math.floor(Math.random() * sourcePacks.length)];
     setCurrentWord(wordData);
 
     const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
@@ -94,9 +199,22 @@ const WordImposter = () => {
     setAssignments(assigned);
     setRevealIndex(0);
     setCardRevealed(false);
+    setVotes({});
+    setVotingRound(1);
+    setSelectedVoteOut(null);
+    setEliminatedPlayers([]);
+    setDiscussionQueue([]);
+    if (settings.discussionOrder === "added") {
+      currentGameDiscussionSeedRef.current = nextGameDiscussionSeedRef.current;
+      nextGameDiscussionSeedRef.current += 1;
+    } else {
+      currentGameDiscussionSeedRef.current = 0;
+    }
+    setRevealedWords(false);
     setPhase("reveal");
     setAnimKey((k) => k + 1);
-  }, [players, validImposterCount, settings.imposterHint]);
+    setTimeLeft(settings.timerSeconds);
+  }, [players, validImposterCount, settings, allWordPacks]);
 
   const nextPlayer = useCallback(() => {
     if (revealIndex < assignments.length - 1) {
@@ -104,17 +222,85 @@ const WordImposter = () => {
       setCardRevealed(false);
       setAnimKey((k) => k + 1);
     } else {
-      setPhase("discussion");
-      setAnimKey((k) => k + 1);
+      enterDiscussionPhase();
     }
-  }, [revealIndex, assignments.length]);
+  }, [revealIndex, assignments.length, enterDiscussionPhase]);
 
   const resetGame = useCallback(() => {
     setPhase("setup");
     setAssignments([]);
     setRevealIndex(0);
     setCardRevealed(false);
+    setVotes({});
+    setVotingRound(1);
+    setSelectedVoteOut(null);
+    setEliminatedPlayers([]);
+    setDiscussionQueue([]);
+    currentGameDiscussionSeedRef.current = 0;
+    setRevealedWords(false);
   }, []);
+
+  const handleVote = useCallback((playerName: string) => {
+    setVotes((v) => ({
+      ...v,
+      [playerName]: (v[playerName] || 0) + 1,
+    }));
+  }, []);
+
+  const findMostVoted = useCallback(() => {
+    if (Object.keys(votes).length === 0) return null;
+    let maxVotes = 0;
+    let mostVoted = "";
+    for (const [name, count] of Object.entries(votes)) {
+      if (count > maxVotes) {
+        maxVotes = count;
+        mostVoted = name;
+      }
+    }
+    return mostVoted;
+  }, [votes]);
+
+  const handleVoteOut = useCallback((playerName: string) => {
+    setSelectedVoteOut(playerName);
+    setPhase("vote-out");
+  }, []);
+
+  const confirmVoteOut = useCallback(() => {
+    if (!selectedVoteOut) return;
+
+    const votedOutPlayer = assignments.find((a) => a.name === selectedVoteOut);
+    const nextEliminated = eliminatedPlayers.includes(selectedVoteOut)
+      ? eliminatedPlayers
+      : [...eliminatedPlayers, selectedVoteOut];
+
+    setEliminatedPlayers(nextEliminated);
+
+    const remainingImposters = assignments.filter(
+      (a) => a.isImposter && !nextEliminated.includes(a.name)
+    ).length;
+
+    if (remainingImposters === 0) {
+      setPhase("result");
+      return;
+    }
+
+    if (votingRound >= maxVotingRounds) {
+      setRevealedWords(false);
+      setPhase("game-over");
+      return;
+    }
+
+    setVotingRound((r) => r + 1);
+    setVotes({});
+    setSelectedVoteOut(null);
+    setTimeLeft(settings.timerSeconds);
+
+    if (settings.timerEnabled) {
+      enterDiscussionPhase(nextEliminated);
+    } else {
+      setPhase("voting");
+    }
+  }, [selectedVoteOut, assignments, eliminatedPlayers, votingRound, maxVotingRounds, settings.timerEnabled, settings.timerSeconds, enterDiscussionPhase]);
 
   // Setup phase
   if (phase === "setup" || phase === "settings") {
@@ -229,6 +415,121 @@ const WordImposter = () => {
                 </div>
               </div>
 
+              {/* Timer Setting */}
+              <div className="bg-card rounded-2xl border border-border p-5 mb-8">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.timerEnabled}
+                    onChange={(e) => setSettings((s) => ({ ...s, timerEnabled: e.target.checked }))}
+                    className="w-4 h-4 rounded"
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-sm flex items-center gap-2">
+                      <Clock className="w-4 h-4" /> Enable Discussion Timer
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Auto-end discussion after timer</p>
+                  </div>
+                </label>
+                {settings.timerEnabled && (
+                  <div className="mt-4">
+                    <label className="text-xs font-medium text-muted-foreground">Duration (seconds)</label>
+                    <input
+                      type="number"
+                      min="30"
+                      max="600"
+                      value={settings.timerSeconds}
+                      onChange={(e) => setSettings((s) => ({ ...s, timerSeconds: parseInt(e.target.value) || 120 }))}
+                      className="w-full mt-2 bg-secondary rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-card rounded-2xl border border-border p-5 mb-8">
+                <label className="text-xs font-mono text-muted-foreground mb-3 block">DISCUSSION ORDER</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setSettings((s) => ({ ...s, discussionOrder: "random" }))}
+                    className={`py-3 rounded-xl text-sm font-semibold transition-all active:scale-95 ${
+                      settings.discussionOrder === "random"
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    }`}
+                  >
+                    Random First
+                  </button>
+                  <button
+                    onClick={() => setSettings((s) => ({ ...s, discussionOrder: "added" }))}
+                    className={`py-3 rounded-xl text-sm font-semibold transition-all active:scale-95 ${
+                      settings.discussionOrder === "added"
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    }`}
+                  >
+                    Add Order
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-card rounded-2xl border border-border p-5 mb-8">
+                <button
+                  onClick={() => setShowAddWords((v) => !v)}
+                  className="w-full flex items-center justify-between text-sm font-semibold"
+                >
+                  <span className="flex items-center gap-2">
+                    <Plus className="w-4 h-4" /> Add Custom Word Packs
+                  </span>
+                  <span className="text-xs text-muted-foreground">{customWordPacks.length}</span>
+                </button>
+
+                {showAddWords && (
+                  <div className="mt-4 space-y-3">
+                    <input
+                      value={newWord}
+                      onChange={(e) => setNewWord(e.target.value)}
+                      placeholder="Main word (e.g. Durian)"
+                      className="w-full bg-secondary rounded-lg px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                    <input
+                      value={newTheme}
+                      onChange={(e) => setNewTheme(e.target.value)}
+                      placeholder="Theme (e.g. Food)"
+                      className="w-full bg-secondary rounded-lg px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                    <input
+                      value={newSimilarWord}
+                      onChange={(e) => setNewSimilarWord(e.target.value)}
+                      placeholder="Imposter clue word (e.g. Jackfruit)"
+                      className="w-full bg-secondary rounded-lg px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                    <Button size="sm" onClick={addWordPackHandler} className="w-full bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20">
+                      <Plus className="w-4 h-4" /> Add Word Pack
+                    </Button>
+
+                    {customWordPacks.length > 0 && (
+                      <div className="space-y-2 pt-1">
+                        {customWordPacks.map((pack) => (
+                          <div key={`${pack.word}|${pack.theme}|${pack.similar}`} className="bg-secondary rounded-lg p-3 text-xs flex items-start justify-between gap-2">
+                            <div className="space-y-1">
+                              <p><span className="font-semibold">Word:</span> {pack.word}</p>
+                              <p><span className="font-semibold">Theme:</span> {pack.theme}</p>
+                              <p><span className="font-semibold">Imposter clue:</span> {pack.similar}</p>
+                            </div>
+                            <button
+                              onClick={() => removeWordPackHandler(pack)}
+                              className="text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-3">
                 <Button size="lg" variant="outline" onClick={() => setPhase("setup")} className="w-full">
                   <ArrowLeft className="w-4 h-4" /> Back
@@ -301,40 +602,304 @@ const WordImposter = () => {
   }
 
   // Discussion phase
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <div className="flex items-center gap-3 px-4 pt-6 pb-4">
-        <button onClick={resetGame} className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors active:scale-95">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h1 className="font-display text-xl font-bold">Word Imposter</h1>
-      </div>
+  if (phase === "discussion") {
+    const queue = discussionQueue.length > 0 ? discussionQueue : buildDiscussionQueue(currentGameDiscussionSeedRef.current);
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-12" key={animKey}>
-        <div className="text-center max-w-sm" style={{ animation: "slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
-          <div className="w-16 h-16 rounded-2xl bg-primary/15 text-primary flex items-center justify-center mx-auto mb-6">
-            <EyeOff className="w-8 h-8" />
-          </div>
-          <h2 className="font-display text-2xl font-bold mb-2">Time to Discuss!</h2>
-          <p className="text-muted-foreground text-sm mb-3 max-w-xs mx-auto">
-            Everyone describes the word without saying it directly. Find the imposter!
-          </p>
-          <p className="text-xs text-muted-foreground font-mono mb-8">
-            {validImposterCount} imposter{validImposterCount > 1 ? "s" : ""} among {players.length} players
-          </p>
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex items-center gap-3 px-4 pt-6 pb-4">
+          <button onClick={resetGame} className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors active:scale-95">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="font-display text-xl font-bold">Word Imposter</h1>
+        </div>
 
-          <div className="space-y-3">
-            <Button size="xl" onClick={startGame} className="w-full bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20">
-              <RotateCcw className="w-5 h-5" /> New Round
-            </Button>
-            <Button size="lg" variant="outline" onClick={resetGame} className="w-full">
-              <ArrowLeft className="w-4 h-4" /> Back to Setup
-            </Button>
+        <div className="flex-1 flex flex-col items-center justify-center px-6 pb-12" key={animKey}>
+          <div className="text-center max-w-sm" style={{ animation: "slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
+            <div className="w-16 h-16 rounded-2xl bg-primary/15 text-primary flex items-center justify-center mx-auto mb-6">
+              <EyeOff className="w-8 h-8" />
+            </div>
+            <h2 className="font-display text-2xl font-bold mb-2">Time to Discuss!</h2>
+            <p className="text-muted-foreground text-sm mb-3 max-w-xs mx-auto">
+              Everyone describes the word without saying it directly. Find the imposter!
+            </p>
+            <p className="text-xs text-muted-foreground font-mono mb-4">
+              {validImposterCount} imposter{validImposterCount > 1 ? "s" : ""} among {players.length} players
+            </p>
+
+            {queue.length > 0 && (
+              <div className="bg-card border border-border rounded-xl p-4 mb-6 text-left">
+                <p className="text-xs font-mono text-muted-foreground mb-2">DISCUSSION ORDER</p>
+                <p className="text-sm mb-1"><span className="font-semibold">First:</span> {queue[0]}</p>
+                <p className="text-xs text-muted-foreground">{queue.join(" -> ")}</p>
+              </div>
+            )}
+
+            {settings.timerEnabled && (
+              <div className="font-display text-4xl font-bold text-primary mb-8">
+                {timeLeft}s
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <Button size="xl" onClick={() => { setPhase("voting"); setVotes({}); }} className="w-full bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20">
+                <Zap className="w-5 h-5" /> Start Voting Round {votingRound}/{maxVotingRounds}
+              </Button>
+              <Button size="lg" variant="outline" onClick={resetGame} className="w-full">
+                <ArrowLeft className="w-4 h-4" /> Back to Setup
+              </Button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Voting phase
+  if (phase === "voting") {
+    const activePlayers = assignments.filter((a) => !eliminatedPlayers.includes(a.name));
+    const mostVoted = findMostVoted();
+    const remainingImposters = assignments.filter(
+      (a) => a.isImposter && !eliminatedPlayers.includes(a.name)
+    ).length;
+
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex items-center gap-3 px-4 pt-6 pb-4">
+          <button onClick={resetGame} className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors active:scale-95">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="font-display text-xl font-bold">Voting Round {votingRound}/{maxVotingRounds}</h1>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center px-6 pb-12">
+          <div className="text-center max-w-sm w-full" style={{ animation: "slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
+            <div className="w-16 h-16 rounded-2xl bg-primary/15 text-primary flex items-center justify-center mx-auto mb-6">
+              <Zap className="w-8 h-8" />
+            </div>
+            <h2 className="font-display text-2xl font-bold mb-2">Who is the Imposter?</h2>
+            <p className="text-muted-foreground text-sm mb-2">Click player names to vote</p>
+            <p className="text-xs text-muted-foreground font-mono mb-6">
+              {remainingImposters} imposter{remainingImposters > 1 ? "s" : ""} remaining
+            </p>
+
+            <div className="space-y-2 mb-8">
+              {activePlayers.map((player) => (
+                <button
+                  key={player.name}
+                  onClick={() => handleVote(player.name)}
+                  className={`w-full px-4 py-3 rounded-xl font-semibold text-sm transition-all active:scale-95 ${
+                    votes[player.name]
+                      ? "bg-primary/15 text-primary border border-primary/30"
+                      : "bg-secondary border border-border hover:border-primary/20"
+                  }`}
+                >
+                  {player.name} {votes[player.name] ? `(${votes[player.name]} votes)` : ""}
+                </button>
+              ))}
+            </div>
+
+            {mostVoted && (
+              <Button size="xl" onClick={() => handleVoteOut(mostVoted)} className="w-full bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20">
+                Vote Out: {mostVoted}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Vote-out confirmation phase
+  if (phase === "vote-out") {
+    const votedOutPlayer = assignments.find((a) => a.name === selectedVoteOut);
+    const isImposter = votedOutPlayer?.isImposter || false;
+    const remainingImposters = assignments.filter(
+      (a) => a.isImposter && !eliminatedPlayers.includes(a.name) && a.name !== selectedVoteOut
+    ).length;
+
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex items-center gap-3 px-4 pt-6 pb-4">
+          <button onClick={() => setPhase("voting")} className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors active:scale-95">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="font-display text-xl font-bold">Confirm Vote</h1>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center px-6 pb-12">
+          <div className="text-center max-w-sm w-full" style={{ animation: "slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ${
+              isImposter
+                ? "bg-destructive/15 text-destructive"
+                : "bg-primary/15 text-primary"
+            }`}>
+              <Eye className="w-8 h-8" />
+            </div>
+            <h2 className="font-display text-3xl font-bold mb-4">{selectedVoteOut}</h2>
+            <p className="text-muted-foreground text-sm mb-8">
+              Vote to eliminate this player?
+            </p>
+
+            {isImposter ? (
+              <p className="text-xs font-mono text-destructive mb-6">
+                Correct guess. {remainingImposters} imposter{remainingImposters !== 1 ? "s" : ""} will remain after this elimination.
+              </p>
+            ) : (
+              <p className="text-xs font-mono text-muted-foreground mb-6">
+                Wrong guess. The imposters stay hidden.
+              </p>
+            )}
+
+            <div className="space-y-3">
+              <Button size="xl" onClick={confirmVoteOut} className={`w-full ${
+                isImposter
+                  ? "bg-destructive/15 text-destructive hover:bg-destructive/25 border border-destructive/20"
+                  : "bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20"
+              }`}>
+                <Zap className="w-5 h-5" /> Confirm
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => setPhase("voting")} className="w-full">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Result phase - imposter revealed
+  if (phase === "result") {
+    const eliminatedImposters = assignments.filter(
+      (a) => a.isImposter && eliminatedPlayers.includes(a.name)
+    );
+
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex items-center gap-3 px-4 pt-6 pb-4">
+          <h1 className="font-display text-xl font-bold">Round Result</h1>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center px-6 pb-12">
+          <div className="text-center max-w-sm w-full" style={{ animation: "slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
+            <div className="w-16 h-16 rounded-2xl bg-destructive/15 text-destructive flex items-center justify-center mx-auto mb-6">
+              <Eye className="w-8 h-8" />
+            </div>
+            <h2 className="font-display text-2xl font-bold mb-2">
+              All imposters were voted out!
+            </h2>
+            <p className="text-muted-foreground text-sm mb-8 max-w-xs mx-auto">
+              The regular players win. Reveal the word details below.
+            </p>
+
+            <div className="bg-card rounded-xl border border-border p-4 mb-6 text-left">
+              <p className="text-xs font-mono text-muted-foreground mb-2">ELIMINATED IMPOSTERS</p>
+              <p className="text-sm font-semibold text-foreground">
+                {eliminatedImposters.map((p) => p.name).join(", ")}
+              </p>
+            </div>
+
+            {!revealedWords && (
+              <div className="bg-card rounded-2xl border-2 border-border p-8 mb-8">
+                <p className="text-muted-foreground text-xs font-mono mb-2">MYSTERY WORD</p>
+                <p className="font-display text-4xl font-bold text-muted-foreground">?????</p>
+                <p className="text-sm text-muted-foreground mt-3">Let the imposters guess before revealing.</p>
+              </div>
+            )}
+
+            {revealedWords && currentWord && (
+              <div className="bg-card rounded-2xl border-2 border-primary/30 p-8 mb-8">
+                <p className="text-muted-foreground text-xs font-mono mb-2">THE WORD:</p>
+                <p className="font-display text-3xl font-bold text-primary mb-4">{currentWord.word}</p>
+                <div className="text-left space-y-2">
+                  <p className="text-sm"><span className="font-semibold">Theme:</span> {currentWord.theme}</p>
+                  <p className="text-sm"><span className="font-semibold">Imposter's Word:</span> {currentWord.similar}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {!revealedWords && (
+                <Button size="xl" onClick={() => setRevealedWords(true)} className="w-full bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20">
+                  <Eye className="w-5 h-5" /> Reveal Word
+                </Button>
+              )}
+              <Button size="lg" onClick={startGame} className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80">
+                <RotateCcw className="w-4 h-4" /> New Round
+              </Button>
+              <Button size="lg" variant="outline" onClick={resetGame} className="w-full">
+                <ArrowLeft className="w-4 h-4" /> Back to Setup
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Game over phase
+  if (phase === "game-over") {
+    const remainingImposters = assignments.filter(
+      (a) => a.isImposter && !eliminatedPlayers.includes(a.name)
+    );
+
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex items-center gap-3 px-4 pt-6 pb-4">
+          <h1 className="font-display text-xl font-bold">Game Over</h1>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center px-6 pb-12">
+          <div className="text-center max-w-sm w-full" style={{ animation: "slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
+            <div className="w-16 h-16 rounded-2xl bg-primary/15 text-primary flex items-center justify-center mx-auto mb-6">
+              <EyeOff className="w-8 h-8" />
+            </div>
+            <h2 className="font-display text-2xl font-bold mb-2">Imposters Win!</h2>
+            <p className="text-muted-foreground text-sm mb-6 max-w-xs mx-auto">
+              After {maxVotingRounds} voting rounds, not all imposters were eliminated.
+            </p>
+
+            {!revealedWords && (
+              <div className="bg-card rounded-2xl border-2 border-border p-6 mb-8">
+                <p className="text-muted-foreground text-xs font-mono mb-3">MYSTERY WORD</p>
+                <p className="text-2xl font-bold text-muted-foreground">?????</p>
+                <p className="text-xs text-muted-foreground mt-3">Click below to reveal</p>
+              </div>
+            )}
+
+            {revealedWords && currentWord && (
+              <div className="bg-card rounded-2xl border-2 border-primary/30 p-6 mb-8">
+                <p className="text-muted-foreground text-xs font-mono mb-2">THE WORD WAS:</p>
+                <p className="font-display text-3xl font-bold text-primary mb-4">{currentWord.word}</p>
+                <div className="text-left space-y-2 text-sm">
+                  <p><span className="font-semibold">Theme:</span> {currentWord.theme}</p>
+                  <p>
+                    <span className="font-semibold">Remaining imposters:</span> {remainingImposters.map((p) => p.name).join(", ")}
+                  </p>
+                  <p><span className="font-semibold">Imposter clue word:</span> {currentWord.similar}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {!revealedWords && (
+                <Button size="xl" onClick={() => setRevealedWords(true)} className="w-full bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20">
+                  <Eye className="w-5 h-5" /> Reveal Words
+                </Button>
+              )}
+              <Button size="lg" onClick={startGame} className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80">
+                <RotateCcw className="w-4 h-4" /> Play Again
+              </Button>
+              <Button size="lg" variant="outline" onClick={resetGame} className="w-full">
+                <ArrowLeft className="w-4 h-4" /> Back to Setup
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 };
 
 export default WordImposter;
