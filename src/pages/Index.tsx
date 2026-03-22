@@ -190,7 +190,7 @@ const Index = () => {
       <header className="pt-12 pb-8 px-6 text-center"
         style={{ animation: "slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
         <div className="w-16 h-16 rounded-2xl mx-auto mb-5 bg-card border border-border flex items-center justify-center shadow-sm">
-          <img src="/app-logo.svg" alt="Social Games logo" className="w-12 h-12" />
+          <img src={`${import.meta.env.BASE_URL}app-logo.svg`} alt="Social Games logo" className="w-12 h-12" />
         </div>
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-mono mb-6 tracking-wide">
           <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
