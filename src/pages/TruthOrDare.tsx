@@ -51,7 +51,7 @@ const dares = [
 
 const TruthOrDare = () => {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"choose" | "truth" | "dare" | null>(null);
+  const [mode, setMode] = useState<"truth" | "dare" | null>(null);
   const [currentPrompt, setCurrentPrompt] = useState("");
   const [animKey, setAnimKey] = useState(0);
 
