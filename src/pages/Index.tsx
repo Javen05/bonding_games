@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Flame, MessageCircle, HelpCircle, Zap, Users, ChevronRight, EyeOff, Search, Star, Infinity as InfinityIcon, Moon } from "lucide-react";
+import { Flame, MessageCircle, HelpCircle, Zap, Users, ChevronRight, EyeOff, Search, Star, Infinity as InfinityIcon, Moon, Vote, Bomb, Shield } from "lucide-react";
 
 const FAVORITE_GAMES_STORAGE_KEY = "favorite_games";
 
@@ -12,6 +12,8 @@ interface GameItem {
   colorClass: string;
   glowClass: string;
   path: string;
+  category: "social" | "callout" | "deduction" | "competitive" | "chaos";
+  tags: string[];
 }
 
 interface GameCardProps {
@@ -26,6 +28,7 @@ interface GameCardProps {
   colorClass: string;
   glowClass: string;
   path: string;
+  tags: string[];
   delay: number;
 }
 
@@ -41,19 +44,29 @@ const GameCard = ({
   colorClass,
   glowClass,
   path,
+  tags,
   delay,
 }: GameCardProps) => {
   const navigate = useNavigate();
   const [pressed, setPressed] = useState(false);
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => navigate(path)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          navigate(path);
+        }
+      }}
       onMouseDown={() => setPressed(true)}
       onMouseUp={() => setPressed(false)}
       onMouseLeave={() => setPressed(false)}
       className={`group relative w-full text-left rounded-2xl bg-card border border-border p-6 transition-all duration-300 hover:border-transparent hover:shadow-2xl ${glowClass} ${pressed ? "scale-[0.97]" : "hover:scale-[1.02]"}`}
       style={{ animationDelay: `${delay}ms`, animation: "slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards", opacity: 0 }}
+      aria-label={`Open ${title}`}
     >
       <div className="flex items-start justify-between mb-4">
         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${colorClass}`}>
@@ -76,6 +89,16 @@ const GameCard = ({
       </div>
       <h3 className="font-display text-xl font-bold mb-1.5">{title}</h3>
       <p className="text-muted-foreground text-sm mb-3 leading-relaxed">{description}</p>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {tags.slice(0, 2).map((tag) => (
+          <span
+            key={tag}
+            className="text-[10px] uppercase tracking-wide font-mono px-2 py-1 rounded-full bg-secondary text-muted-foreground"
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
         <Users className="w-3.5 h-3.5" />
         <span>{players}</span>
@@ -85,80 +108,139 @@ const GameCard = ({
           Favorite
         </div>
       )}
-    </button>
+    </div>
   );
 };
 
 const games: GameItem[] = [
   {
     title: "Truth or Dare",
-    description: "Classic bunk game. Spill secrets or take on wild dares — NSF edition.",
+    description: "Spill secrets or take on wild dares.",
     players: "2–20 players",
-    icon: <Flame className="w-6 h-6" />,
-    colorClass: "bg-game-truth/15 text-game-truth",
-    glowClass: "hover:shadow-game-truth/10",
+    icon: <Shield className="w-6 h-6" />,
+    colorClass: "bg-blue-500/15 text-blue-300",
+    glowClass: "hover:shadow-blue-300/15",
     path: "/truth-or-dare",
+    category: "social",
+    tags: ["social", "casual"],
   },
   {
     title: "Never Have I Ever",
     description: "Find out who's lived the wildest life. Put your fingers down one by one.",
     players: "3–20 players",
     icon: <MessageCircle className="w-6 h-6" />,
-    colorClass: "bg-game-never/15 text-game-never",
-    glowClass: "hover:shadow-game-never/10",
+    colorClass: "bg-blue-500/15 text-blue-300",
+    glowClass: "hover:shadow-blue-300/15",
     path: "/never-have-i-ever",
+    category: "social",
+    tags: ["social", "stories"],
   },
   {
     title: "Would You Rather",
     description: "Two impossible choices. Debate with your section mates till lights out.",
     players: "2–20 players",
     icon: <HelpCircle className="w-6 h-6" />,
-    colorClass: "bg-game-wyr/15 text-game-wyr",
-    glowClass: "hover:shadow-game-wyr/10",
+    colorClass: "bg-blue-500/15 text-blue-300",
+    glowClass: "hover:shadow-blue-300/15",
     path: "/would-you-rather",
+    category: "social",
+    tags: ["social", "debate"],
   },
   {
     title: "Hot Seat",
     description: "One person gets grilled. Random questions, nowhere to hide.",
     players: "3–20 players",
     icon: <Zap className="w-6 h-6" />,
-    colorClass: "bg-game-hotseat/15 text-game-hotseat",
-    glowClass: "hover:shadow-game-hotseat/10",
+    colorClass: "bg-teal-400/15 text-teal-300",
+    glowClass: "hover:shadow-teal-300/15",
     path: "/hot-seat",
+    category: "callout",
+    tags: ["selected player", "questions"],
   },
   {
     title: "Word Imposter",
     description: "One word, one liar. Describe without revealing — find the fake.",
     players: "3–20 players",
     icon: <EyeOff className="w-6 h-6" />,
-    colorClass: "bg-primary/15 text-primary",
-    glowClass: "hover:shadow-primary/10",
+    colorClass: "bg-rose-500/15 text-rose-400",
+    glowClass: "hover:shadow-rose-400/15",
     path: "/word-imposter",
+    category: "deduction",
+    tags: ["deduction", "bluff"],
   },
   {
     title: "Infinite Tic Tac Toe",
     description: "2 players only. After your 4th move, your oldest mark disappears. Keep playing till someone wins.",
     players: "2 players",
     icon: <InfinityIcon className="w-6 h-6" />,
-    colorClass: "bg-game-dare/15 text-game-dare",
-    glowClass: "hover:shadow-game-dare/10",
+    colorClass: "bg-amber-400/15 text-amber-300",
+    glowClass: "hover:shadow-amber-300/15",
     path: "/infinite-tic-tac-toe",
+    category: "competitive",
+    tags: ["competitive", "2 players"],
   },
   {
     title: "Werewolf",
-    description: "Moderator-led social deduction with optional Doctor and Seer, plus scalable werewolf count.",
+    description: "Social deduction with optional Doctor and Seer, plus scalable werewolf count.",
     players: "5+ players",
     icon: <Moon className="w-6 h-6" />,
-    colorClass: "bg-game-hotseat/15 text-game-hotseat",
-    glowClass: "hover:shadow-game-hotseat/10",
+    colorClass: "bg-red-500/15 text-red-400",
+    glowClass: "hover:shadow-red-400/15",
     path: "/werewolf",
+    category: "deduction",
+    tags: ["deduction", "advanced"],
+  },
+  {
+    title: "Pass The Heat",
+    description: "Rapid pass-and-play prompts with timer pressure and instant penalties.",
+    players: "2+ players",
+    icon: <Flame className="w-6 h-6" />,
+    colorClass: "bg-orange-500/15 text-orange-400",
+    glowClass: "hover:shadow-orange-400/15",
+    path: "/pass-the-heat",
+    category: "chaos",
+    tags: ["chaos", "timer"],
+  },
+  {
+    title: "Callout Clash",
+    description: "Callout the player that resonates best with the statement.",
+    players: "3+ players",
+    icon: <Vote className="w-6 h-6" />,
+    colorClass: "bg-teal-400/15 text-teal-300",
+    glowClass: "hover:shadow-teal-300/15",
+    path: "/vote-or-sip",
+    category: "callout",
+    tags: ["selected player", "voting"],
+  },
+  {
+    title: "Chain Reaction",
+    description: "Yapping session with rules to escalate chaos every few turns.",
+    players: "3+ players",
+    icon: <Bomb className="w-6 h-6" />,
+    colorClass: "bg-orange-500/15 text-orange-400",
+    glowClass: "hover:shadow-orange-400/15",
+    path: "/chain-reaction",
+    category: "chaos",
+    tags: ["chaos", "rules"],
   },
 ];
+
+const gameFilters = [
+  { value: "all", label: "All" },
+  { value: "social", label: "Social" },
+  { value: "callout", label: "Callout" },
+  { value: "deduction", label: "Deduction" },
+  { value: "competitive", label: "Competitive" },
+  { value: "chaos", label: "Chaos" },
+] as const;
+
+type GameFilterValue = (typeof gameFilters)[number]["value"];
 
 const Index = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [favoriteGamePaths, setFavoriteGamePaths] = useState<string[]>([]);
+  const [activeFilter, setActiveFilter] = useState<GameFilterValue>("all");
 
   useEffect(() => {
     try {
@@ -188,11 +270,14 @@ const Index = () => {
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredGames = games.filter((game) => {
-    if (!normalizedSearch) return true;
-    return (
+    const matchesSearch =
+      !normalizedSearch ||
       game.title.toLowerCase().includes(normalizedSearch) ||
-      game.description.toLowerCase().includes(normalizedSearch)
-    );
+      game.description.toLowerCase().includes(normalizedSearch) ||
+      game.tags.some((tag) => tag.toLowerCase().includes(normalizedSearch));
+
+    const matchesFilter = activeFilter === "all" || game.category === activeFilter;
+    return matchesSearch && matchesFilter;
   });
 
   const visibleGames = filteredGames.filter((game) => {
@@ -250,6 +335,25 @@ const Index = () => {
             <div className="font-mono text-muted-foreground">
               {favoriteCount} favorite{favoriteCount === 1 ? "" : "s"}
             </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {gameFilters.map((filter) => {
+              const selected = activeFilter === filter.value;
+              return (
+                <button
+                  key={filter.value}
+                  onClick={() => setActiveFilter(filter.value)}
+                  className={`px-3 py-1.5 rounded-full border text-xs font-mono transition-colors ${selected ? "border-primary/50 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
+                >
+                  {filter.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-2 text-[11px] text-muted-foreground font-mono">
+            Icon strategy: blue = Social, teal = Callout, red = deduction/advanced, amber = competitive, orange = chaos.
           </div>
         </div>
 

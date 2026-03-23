@@ -49,8 +49,9 @@ const WouldYouRather = () => {
   const [timeLeft, setTimeLeft] = useState(30);
   const [timerExpired, setTimerExpired] = useState(false);
   const [votes, setVotes] = useState<Record<string, number>>({});
+  const [contentMode, setContentMode] = useState<"mixed" | "default-only" | "custom-only">("mixed");
 
-  useEffect(() => {
+  const refreshQuestions = useCallback(() => {
     const customList = getCustomQuestions("wyr").map((q: string) => {
       const parts = q.split("|");
       if (parts.length === 2) {
@@ -58,13 +59,22 @@ const WouldYouRather = () => {
       }
       return null;
     }).filter(Boolean) as Question[];
-    
-    const merged = [...defaultQuestions, ...customList];
-    setAllQuestions(merged);
-    const s = [...merged].sort(() => Math.random() - 0.5);
-    setShuffled(s);
+
+    const source =
+      contentMode === "custom-only"
+        ? customList
+        : contentMode === "default-only"
+          ? [...defaultQuestions]
+          : [...defaultQuestions, ...customList];
     setCustomQuestions(customList);
-  }, []);
+    setAllQuestions(source);
+    setShuffled([...source].sort(() => Math.random() - 0.5));
+    setCurrentIndex(0);
+  }, [contentMode]);
+
+  useEffect(() => {
+    refreshQuestions();
+  }, [refreshQuestions]);
 
   useEffect(() => {
     if (!timerEnabled || timerExpired) return;
@@ -86,24 +96,20 @@ const WouldYouRather = () => {
     if (newOptionA.trim() && newOptionB.trim()) {
       const customStr = `${newOptionA.trim()} | ${newOptionB.trim()}`;
       addCustomQuestion("wyr", customStr);
-      const customQuest = { a: newOptionA.trim(), b: newOptionB.trim() };
-      const updated = [...customQuestions, customQuest];
-      setCustomQuestions(updated);
-      setAllQuestions([...defaultQuestions, ...updated]);
+      refreshQuestions();
       setNewOptionA("");
       setNewOptionB("");
     }
-  }, [newOptionA, newOptionB, customQuestions]);
+  }, [newOptionA, newOptionB, refreshQuestions]);
 
   const removeCustomHandler = useCallback((question: Question) => {
     const customStr = `${question.a} | ${question.b}`;
     removeCustomQuestion("wyr", customStr);
-    const updated = customQuestions.filter((q) => q.a !== question.a || q.b !== question.b);
-    setCustomQuestions(updated);
-    setAllQuestions([...defaultQuestions, ...updated]);
-  }, [customQuestions]);
+    refreshQuestions();
+  }, [refreshQuestions]);
 
   const next = useCallback(() => {
+    if (shuffled.length === 0) return;
     setCurrentIndex((i) => (i + 1) % shuffled.length);
     setSelected(null);
     setVotes({});
@@ -157,6 +163,19 @@ const WouldYouRather = () => {
 
             {/* Custom Questions */}
             <div className="bg-card rounded-xl p-4 border border-border">
+              <div className="mb-4">
+                <label className="text-xs font-medium text-muted-foreground">Content Source</label>
+                <select
+                  value={contentMode}
+                  onChange={(e) => setContentMode(e.target.value as "mixed" | "default-only" | "custom-only")}
+                  className="w-full mt-2 bg-secondary rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-game-wyr/40"
+                >
+                  <option value="mixed">Use ALL Data</option>
+                  <option value="default-only">BUILT-IN Data</option>
+                  <option value="custom-only">CUSTOM Data</option>
+                </select>
+              </div>
+
               <button
                 onClick={() => setShowAdd(!showAdd)}
                 className="w-full flex items-center justify-between font-semibold text-sm"

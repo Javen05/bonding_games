@@ -342,6 +342,7 @@ const WordImposter = () => {
   const [newTheme, setNewTheme] = useState("");
   const [newSimilarWord, setNewSimilarWord] = useState("");
   const [showAddWords, setShowAddWords] = useState(false);
+  const [wordPackMode, setWordPackMode] = useState<"mixed" | "default-only" | "custom-only">("mixed");
   
   // Game state
   const [assignments, setAssignments] = useState<{ name: string; isImposter: boolean; text: string }[]>([]);
@@ -450,7 +451,13 @@ const WordImposter = () => {
   }, [refreshWordPacks]);
 
   const startGame = useCallback(() => {
-    const sourcePacks = allWordPacks.length > 0 ? allWordPacks : defaultWordPacks;
+    const sourcePacks =
+      wordPackMode === "custom-only"
+        ? customWordPacks
+        : wordPackMode === "default-only"
+          ? defaultWordPacks
+          : (allWordPacks.length > 0 ? allWordPacks : defaultWordPacks);
+    if (sourcePacks.length === 0) return;
     const wordData = sourcePacks[Math.floor(Math.random() * sourcePacks.length)];
     setCurrentWord(wordData);
 
@@ -489,7 +496,7 @@ const WordImposter = () => {
     setPhase("reveal");
     setAnimKey((k) => k + 1);
     setTimeLeft(settings.timerSeconds);
-  }, [players, validImposterCount, settings, allWordPacks]);
+  }, [players, validImposterCount, settings, allWordPacks, wordPackMode, customWordPacks]);
 
   const nextPlayer = useCallback(() => {
     if (revealIndex < assignments.length - 1) {
@@ -748,6 +755,19 @@ const WordImposter = () => {
               </div>
 
               <div className="bg-card rounded-2xl border border-border p-5 mb-8">
+                <div className="mb-4">
+                  <label className="text-xs font-medium text-muted-foreground">Word Pack Source</label>
+                  <select
+                    value={wordPackMode}
+                    onChange={(e) => setWordPackMode(e.target.value as "mixed" | "default-only" | "custom-only")}
+                    className="w-full mt-2 bg-secondary rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  >
+                    <option value="mixed">Use ALL Data</option>
+                    <option value="default-only">BUILT-IN Data</option>
+                    <option value="custom-only">CUSTOM Data</option>
+                  </select>
+                </div>
+
                 <button
                   onClick={() => setShowAddWords((v) => !v)}
                   className="w-full flex items-center justify-between text-sm font-semibold"
@@ -809,9 +829,17 @@ const WordImposter = () => {
                 <Button size="lg" variant="outline" onClick={() => setPhase("setup")} className="w-full">
                   <ArrowLeft className="w-4 h-4" /> Back
                 </Button>
-                <Button size="xl" onClick={startGame} className="w-full bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20">
+                <Button
+                  size="xl"
+                  onClick={startGame}
+                  disabled={wordPackMode === "custom-only" && customWordPacks.length === 0}
+                  className="w-full bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20"
+                >
                   <Play className="w-5 h-5" /> Start Game
                 </Button>
+                {wordPackMode === "custom-only" && customWordPacks.length === 0 && (
+                  <p className="text-center text-muted-foreground text-xs font-mono">No custom word packs available.</p>
+                )}
               </div>
             </>
           )}

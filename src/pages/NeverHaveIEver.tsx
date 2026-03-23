@@ -60,14 +60,25 @@ const NeverHaveIEver = () => {
   const [timerEnabled, setTimerEnabled] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(60);
   const [timeLeft, setTimeLeft] = useState(60);
+  const [contentMode, setContentMode] = useState<"mixed" | "default-only" | "custom-only">("mixed");
+
+  const refreshStatements = useCallback(() => {
+    const custom = getCustomQuestions("never");
+    const merged =
+      contentMode === "custom-only"
+        ? custom
+        : contentMode === "default-only"
+          ? [...defaultStatements]
+          : getMergedQuestions(defaultStatements, "never");
+    setCustomStatements(custom);
+    setAllStatements(merged);
+    setShuffled([...merged].sort(() => Math.random() - 0.5));
+    setCurrentIndex(0);
+  }, [contentMode]);
 
   useEffect(() => {
-    const merged = getMergedQuestions(defaultStatements, "never");
-    setAllStatements(merged);
-    const s = [...merged].sort(() => Math.random() - 0.5);
-    setShuffled(s);
-    setCustomStatements(getCustomQuestions("never"));
-  }, []);
+    refreshStatements();
+  }, [refreshStatements]);
 
   useEffect(() => {
     if (!timerEnabled) return;
@@ -89,25 +100,18 @@ const NeverHaveIEver = () => {
     const statement = newCustomStatement.trim();
     if (statement) {
       addCustomQuestion("never", statement);
-      const merged = getMergedQuestions(defaultStatements, "never");
-      setAllStatements(merged);
-      const s = [...merged].sort(() => Math.random() - 0.5);
-      setShuffled(s);
-      setCustomStatements(getCustomQuestions("never"));
+      refreshStatements();
       setNewCustomStatement("");
     }
-  }, [newCustomStatement]);
+  }, [newCustomStatement, refreshStatements]);
 
   const removeCustomHandler = useCallback((statement: string) => {
     removeCustomQuestion("never", statement);
-    const merged = getMergedQuestions(defaultStatements, "never");
-    setAllStatements(merged);
-    const s = [...merged].sort(() => Math.random() - 0.5);
-    setShuffled(s);
-    setCustomStatements(getCustomQuestions("never"));
-  }, []);
+    refreshStatements();
+  }, [refreshStatements]);
 
   const next = useCallback(() => {
+    if (shuffled.length === 0) return;
     setCurrentIndex((i) => (i + 1) % shuffled.length);
     setTimeLeft(timerSeconds);
     setAnimKey((k) => k + 1);
@@ -158,6 +162,19 @@ const NeverHaveIEver = () => {
 
             {/* Custom Statements */}
             <div className="bg-card rounded-xl p-4 border border-border">
+              <div className="mb-4">
+                <label className="text-xs font-medium text-muted-foreground">Content Source</label>
+                <select
+                  value={contentMode}
+                  onChange={(e) => setContentMode(e.target.value as "mixed" | "default-only" | "custom-only")}
+                  className="w-full mt-2 bg-secondary rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-game-never/40"
+                >
+                  <option value="mixed">Use ALL Data</option>
+                  <option value="default-only">BUILT-IN Data</option>
+                  <option value="custom-only">CUSTOM Data</option>
+                </select>
+              </div>
+
               <button
                 onClick={() => setShowAdd(!showAdd)}
                 className="w-full flex items-center justify-between font-semibold text-sm"
@@ -228,7 +245,7 @@ const NeverHaveIEver = () => {
           </div>
 
           <p className="font-display text-2xl sm:text-3xl font-bold leading-tight mb-10">
-            {statement}
+            {statement || "No statements available. Add custom statements in Settings."}
           </p>
 
           {timerEnabled && (

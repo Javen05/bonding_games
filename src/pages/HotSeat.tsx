@@ -55,12 +55,23 @@ const HotSeat = () => {
   const [timerPaused, setTimerPaused] = useState(false);
   const [allQuestions, setAllQuestions] = useState<string[]>([]);
   const [customQuestions, setCustomQuestions] = useState<string[]>([]);
+  const [contentMode, setContentMode] = useState<"mixed" | "default-only" | "custom-only">("mixed");
+
+  const refreshQuestions = useCallback(() => {
+    const custom = getCustomQuestions("hotseat");
+    const source =
+      contentMode === "custom-only"
+        ? custom
+        : contentMode === "default-only"
+          ? [...defaultHotSeatQuestions]
+          : getMergedQuestions(defaultHotSeatQuestions, "hotseat");
+    setAllQuestions(source);
+    setCustomQuestions(custom);
+  }, [contentMode]);
 
   useEffect(() => {
-    const merged = getMergedQuestions(defaultHotSeatQuestions, "hotseat");
-    setAllQuestions(merged);
-    setCustomQuestions(getCustomQuestions("hotseat"));
-  }, []);
+    refreshQuestions();
+  }, [refreshQuestions]);
 
   useEffect(() => {
     if (!timerEnabled || !gameStarted || isSpinning || timerPaused) return;
@@ -95,19 +106,15 @@ const HotSeat = () => {
     const question = newCustomQuestion.trim();
     if (question) {
       addCustomQuestion("hotseat", question);
-      const merged = getMergedQuestions(defaultHotSeatQuestions, "hotseat");
-      setAllQuestions(merged);
-      setCustomQuestions(getCustomQuestions("hotseat"));
+      refreshQuestions();
       setNewCustomQuestion("");
     }
-  }, [newCustomQuestion]);
+  }, [newCustomQuestion, refreshQuestions]);
 
   const removeCustomQuestionHandler = useCallback((question: string) => {
     removeCustomQuestion("hotseat", question);
-    const merged = getMergedQuestions(defaultHotSeatQuestions, "hotseat");
-    setAllQuestions(merged);
-    setCustomQuestions(getCustomQuestions("hotseat"));
-  }, []);
+    refreshQuestions();
+  }, [refreshQuestions]);
 
   const spin = useCallback(() => {
     if (players.length < 2 || allQuestions.length === 0) return;
@@ -176,6 +183,19 @@ const HotSeat = () => {
 
             {/* Custom Questions */}
             <div className="bg-card rounded-xl p-4 border border-border">
+              <div className="mb-4">
+                <label className="text-xs font-medium text-muted-foreground">Content Source</label>
+                <select
+                  value={contentMode}
+                  onChange={(e) => setContentMode(e.target.value as "mixed" | "default-only" | "custom-only")}
+                  className="w-full mt-2 bg-secondary rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-game-hotseat/40"
+                >
+                  <option value="mixed">Use ALL Data</option>
+                  <option value="default-only">BUILT-IN Data</option>
+                  <option value="custom-only">CUSTOM Data</option>
+                </select>
+              </div>
+
               <button
                 onClick={() => setShowAddCustom(!showAddCustom)}
                 className="w-full flex items-center justify-between font-semibold text-sm"
@@ -271,10 +291,13 @@ const HotSeat = () => {
             ))}
           </div>
 
-          {players.length >= 2 && (
+          {players.length >= 2 && allQuestions.length > 0 && (
             <Button size="xl" onClick={() => { setGameStarted(true); spin(); }} className="w-full bg-game-hotseat/15 text-game-hotseat hover:bg-game-hotseat/25 border border-game-hotseat/20">
               <Play className="w-5 h-5" /> Start Game
             </Button>
+          )}
+          {players.length >= 2 && allQuestions.length === 0 && (
+            <p className="text-center text-muted-foreground text-xs font-mono">No questions available. Add custom questions in Settings.</p>
           )}
         </div>
       </div>

@@ -270,7 +270,7 @@ const TruthOrDare = () => {
   const [currentPrompt, setCurrentPrompt] = useState("");
   const [animKey, setAnimKey] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
-  const [showAddCustom, setShowAddCustom] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"source" | "truth" | "dare">("source");
   const [newCustomTruth, setNewCustomTruth] = useState("");
   const [newCustomDare, setNewCustomDare] = useState("");
   const [timerEnabled, setTimerEnabled] = useState(false);
@@ -281,15 +281,32 @@ const TruthOrDare = () => {
   const [customDares, setCustomDares] = useState<string[]>([]);
   const [allTruths, setAllTruths] = useState<string[]>([]);
   const [allDares, setAllDares] = useState<string[]>([]);
+  const [contentMode, setContentMode] = useState<"mixed" | "default-only" | "custom-only">("mixed");
+
+  const refreshPools = useCallback(() => {
+    const customTruth = getCustomQuestions("truth");
+    const customDare = getCustomQuestions("dare");
+    setCustomTruths(customTruth);
+    setCustomDares(customDare);
+    setAllTruths(
+      contentMode === "custom-only"
+        ? customTruth
+        : contentMode === "default-only"
+          ? [...defaultTruths]
+          : getMergedQuestions(defaultTruths, "truth")
+    );
+    setAllDares(
+      contentMode === "custom-only"
+        ? customDare
+        : contentMode === "default-only"
+          ? [...defaultDares]
+          : getMergedQuestions(defaultDares, "dare")
+    );
+  }, [contentMode]);
 
   useEffect(() => {
-    const merged = getMergedQuestions(defaultTruths, "truth");
-    const mergedDares = getMergedQuestions(defaultDares, "dare");
-    setAllTruths(merged);
-    setAllDares(mergedDares);
-    setCustomTruths(getCustomQuestions("truth"));
-    setCustomDares(getCustomQuestions("dare"));
-  }, []);
+    refreshPools();
+  }, [refreshPools]);
 
   useEffect(() => {
     if (!timerEnabled || mode === null || timerExpired) return;
@@ -312,37 +329,29 @@ const TruthOrDare = () => {
     const question = newCustomTruth.trim();
     if (question) {
       addCustomQuestion("truth", question);
-      const merged = getMergedQuestions(defaultTruths, "truth");
-      setAllTruths(merged);
-      setCustomTruths(getCustomQuestions("truth"));
+      refreshPools();
       setNewCustomTruth("");
     }
-  }, [newCustomTruth]);
+  }, [newCustomTruth, refreshPools]);
 
   const addCustomDareHandler = useCallback(() => {
     const question = newCustomDare.trim();
     if (question) {
       addCustomQuestion("dare", question);
-      const merged = getMergedQuestions(defaultDares, "dare");
-      setAllDares(merged);
-      setCustomDares(getCustomQuestions("dare"));
+      refreshPools();
       setNewCustomDare("");
     }
-  }, [newCustomDare]);
+  }, [newCustomDare, refreshPools]);
 
   const removeCustomTruthHandler = useCallback((question: string) => {
     removeCustomQuestion("truth", question);
-    const merged = getMergedQuestions(defaultTruths, "truth");
-    setAllTruths(merged);
-    setCustomTruths(getCustomQuestions("truth"));
-  }, []);
+    refreshPools();
+  }, [refreshPools]);
 
   const removeCustomDareHandler = useCallback((question: string) => {
     removeCustomQuestion("dare", question);
-    const merged = getMergedQuestions(defaultDares, "dare");
-    setAllDares(merged);
-    setCustomDares(getCustomQuestions("dare"));
-  }, []);
+    refreshPools();
+  }, [refreshPools]);
 
   const pickRandom = useCallback((type: "truth" | "dare") => {
     const list = type === "truth" ? allTruths : allDares;
@@ -367,128 +376,147 @@ const TruthOrDare = () => {
 
         <div className="flex-1 px-6 pb-12 max-w-sm mx-auto w-full overflow-y-auto">
           <div className="space-y-6 pt-6">
-            {/* Timer Settings */}
-            <div className="bg-card rounded-xl p-4 border border-border">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={timerEnabled}
-                  onChange={(e) => setTimerEnabled(e.target.checked)}
-                  className="w-4 h-4 rounded"
-                />
-                <div className="flex-1">
-                  <div className="font-semibold text-sm flex items-center gap-2">
-                    <Clock className="w-4 h-4" /> Enable Timer
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">Shows time to answer</p>
-                </div>
-              </label>
-              {timerEnabled && (
-                <div className="mt-4">
-                  <label className="text-xs font-medium text-muted-foreground">Duration (seconds)</label>
-                  <input
-                    type="number"
-                    min="5"
-                    max="120"
-                    value={timerSeconds}
-                    onChange={(e) => setTimerSeconds(parseInt(e.target.value) || 30)}
+            <div className="grid grid-cols-3 gap-2 bg-card rounded-xl border border-border p-2">
+              <button
+                onClick={() => setSettingsTab("source")}
+                className={`rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${settingsTab === "source" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Source
+              </button>
+              <button
+                onClick={() => setSettingsTab("truth")}
+                className={`rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${settingsTab === "truth" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Truth
+              </button>
+              <button
+                onClick={() => setSettingsTab("dare")}
+                className={`rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${settingsTab === "dare" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Dare
+              </button>
+            </div>
+
+            {settingsTab === "source" && (
+              <div className="space-y-6">
+                <div className="bg-card rounded-xl p-4 border border-border">
+                  <label className="text-xs font-medium text-muted-foreground">Content Source</label>
+                  <select
+                    value={contentMode}
+                    onChange={(e) => setContentMode(e.target.value as "mixed" | "default-only" | "custom-only")}
                     className="w-full mt-2 bg-secondary rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-game-truth/40"
+                  >
+                    <option value="mixed">Use ALL Data</option>
+                    <option value="default-only">BUILT-IN Data</option>
+                    <option value="custom-only">CUSTOM Data</option>
+                  </select>
+                </div>
+
+                <div className="bg-card rounded-xl p-4 border border-border">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={timerEnabled}
+                      onChange={(e) => setTimerEnabled(e.target.checked)}
+                      className="w-4 h-4 rounded"
+                    />
+                    <div className="flex-1">
+                      <div className="font-semibold text-sm flex items-center gap-2">
+                        <Clock className="w-4 h-4" /> Enable Timer
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Shows time to answer</p>
+                    </div>
+                  </label>
+                  {timerEnabled && (
+                    <div className="mt-4">
+                      <label className="text-xs font-medium text-muted-foreground">Duration (seconds)</label>
+                      <input
+                        type="number"
+                        min="5"
+                        max="120"
+                        value={timerSeconds}
+                        onChange={(e) => setTimerSeconds(parseInt(e.target.value) || 30)}
+                        className="w-full mt-2 bg-secondary rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-game-truth/40"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {settingsTab === "truth" && (
+              <div className="bg-card rounded-xl p-4 border border-border">
+                <p className="font-semibold text-sm mb-3">Add Custom Truths</p>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    value={newCustomTruth}
+                    onChange={(e) => setNewCustomTruth(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addCustomTruthHandler()}
+                    placeholder="Enter truth..."
+                    className="flex-1 bg-secondary rounded-lg px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-game-truth/40"
                   />
+                  <Button onClick={addCustomTruthHandler} size="sm" className="bg-game-truth/15 text-game-truth hover:bg-game-truth/25">
+                    <Plus className="w-4 h-4" />
+                  </Button>
                 </div>
-              )}
-            </div>
 
-            {/* Custom Truths */}
-            <div className="bg-card rounded-xl p-4 border border-border">
-              <button
-                onClick={() => setShowAddCustom(!showAddCustom)}
-                className="w-full flex items-center justify-between font-semibold text-sm"
-              >
-                <span className="flex items-center gap-2">
-                  <Plus className="w-4 h-4" /> Add Custom Truths
-                </span>
-              </button>
-              
-              {showAddCustom && (
-                <div className="mt-4 space-y-3">
-                  <div className="flex gap-2">
-                    <input
-                      value={newCustomTruth}
-                      onChange={(e) => setNewCustomTruth(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addCustomTruthHandler()}
-                      placeholder="Enter truth..."
-                      className="flex-1 bg-secondary rounded-lg px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-game-truth/40"
-                    />
-                    <Button onClick={addCustomTruthHandler} size="sm" className="bg-game-truth/15 text-game-truth hover:bg-game-truth/25">
-                      <Plus className="w-4 h-4" />
-                    </Button>
+                {customTruths.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Your Custom Truths ({customTruths.length})</p>
+                    {customTruths.map((q) => (
+                      <div key={q} className="flex items-start justify-between bg-secondary rounded-lg p-2 text-xs">
+                        <span className="flex-1">{q}</span>
+                        <button
+                          onClick={() => removeCustomTruthHandler(q)}
+                          className="text-muted-foreground hover:text-destructive ml-2"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                  
-                  {customTruths.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground">Your Custom Truths ({customTruths.length})</p>
-                      {customTruths.map((q) => (
-                        <div key={q} className="flex items-start justify-between bg-secondary rounded-lg p-2 text-xs">
-                          <span className="flex-1">{q}</span>
-                          <button
-                            onClick={() => removeCustomTruthHandler(q)}
-                            className="text-muted-foreground hover:text-destructive ml-2"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No custom truths yet.</p>
+                )}
+              </div>
+            )}
 
-            {/* Custom Dares */}
-            <div className="bg-card rounded-xl p-4 border border-border">
-              <button
-                onClick={() => setShowAddCustom(!showAddCustom)}
-                className="w-full flex items-center justify-between font-semibold text-sm"
-              >
-                <span className="flex items-center gap-2">
-                  <Plus className="w-4 h-4" /> Add Custom Dares
-                </span>
-              </button>
-              
-              {showAddCustom && (
-                <div className="mt-4 space-y-3">
-                  <div className="flex gap-2">
-                    <input
-                      value={newCustomDare}
-                      onChange={(e) => setNewCustomDare(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addCustomDareHandler()}
-                      placeholder="Enter dare..."
-                      className="flex-1 bg-secondary rounded-lg px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-game-dare/40"
-                    />
-                    <Button onClick={addCustomDareHandler} size="sm" className="bg-game-dare/15 text-game-dare hover:bg-game-dare/25">
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  
-                  {customDares.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground">Your Custom Dares ({customDares.length})</p>
-                      {customDares.map((q) => (
-                        <div key={q} className="flex items-start justify-between bg-secondary rounded-lg p-2 text-xs">
-                          <span className="flex-1">{q}</span>
-                          <button
-                            onClick={() => removeCustomDareHandler(q)}
-                            className="text-muted-foreground hover:text-destructive ml-2"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+            {settingsTab === "dare" && (
+              <div className="bg-card rounded-xl p-4 border border-border">
+                <p className="font-semibold text-sm mb-3">Add Custom Dares</p>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    value={newCustomDare}
+                    onChange={(e) => setNewCustomDare(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addCustomDareHandler()}
+                    placeholder="Enter dare..."
+                    className="flex-1 bg-secondary rounded-lg px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-game-dare/40"
+                  />
+                  <Button onClick={addCustomDareHandler} size="sm" className="bg-game-dare/15 text-game-dare hover:bg-game-dare/25">
+                    <Plus className="w-4 h-4" />
+                  </Button>
                 </div>
-              )}
-            </div>
+
+                {customDares.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Your Custom Dares ({customDares.length})</p>
+                    {customDares.map((q) => (
+                      <div key={q} className="flex items-start justify-between bg-secondary rounded-lg p-2 text-xs">
+                        <span className="flex-1">{q}</span>
+                        <button
+                          onClick={() => removeCustomDareHandler(q)}
+                          className="text-muted-foreground hover:text-destructive ml-2"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No custom dares yet.</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

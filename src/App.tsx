@@ -13,6 +13,9 @@ import HotSeat from "./pages/HotSeat.tsx";
 import Socials from "./pages/Socials.tsx";
 import InfiniteTicTacToe from "./pages/InfiniteTicTacToe.tsx";
 import Werewolf from "./pages/Werewolf.tsx";
+import PassTheHeat from "./pages/PassTheHeat.tsx";
+import CalloutClash from "./pages/CalloutClash.tsx";
+import ChainReaction from "./pages/ChainReaction.tsx";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +34,9 @@ const App = () => (
           <Route path="/word-imposter" element={<WordImposter />} />
           <Route path="/infinite-tic-tac-toe" element={<InfiniteTicTacToe />} />
           <Route path="/werewolf" element={<Werewolf />} />
+          <Route path="/pass-the-heat" element={<PassTheHeat />} />
+          <Route path="/vote-or-sip" element={<CalloutClash />} />
+          <Route path="/chain-reaction" element={<ChainReaction />} />
           <Route path="/socials" element={<Socials />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
