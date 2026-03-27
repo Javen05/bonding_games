@@ -13,6 +13,7 @@ interface GameSettings {
   imposterCount: number;
   imposterHint: ImposterHint;
   discussionOrder: DiscussionOrder;
+  jesterEnabled: boolean;
   timerEnabled: boolean;
   timerSeconds: number;
 }
@@ -21,6 +22,12 @@ interface WordPack {
   word: string;
   theme: string;
   similar: string;
+}
+
+interface PlayerAssignment {
+  name: string;
+  role: "crewmate" | "imposter" | "jester";
+  text: string;
 }
 
 const defaultWordPacks: WordPack[] = [
@@ -333,10 +340,10 @@ const defaultWordPacks: WordPack[] = [
 
 const WordImposter = () => {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<"setup" | "settings" | "reveal" | "discussion" | "voting" | "vote-out" | "result" | "game-over">("setup");
+  const [phase, setPhase] = useState<"setup" | "settings" | "reveal" | "discussion" | "voting" | "vote-out" | "result" | "jester-win" | "game-over">("setup");
   const [players, setPlayers] = useState<string[]>([]);
   const [newPlayer, setNewPlayer] = useState("");
-  const [settings, setSettings] = useState<GameSettings>({ imposterCount: 1, imposterHint: "nothing", discussionOrder: "random", timerEnabled: false, timerSeconds: 120 });
+  const [settings, setSettings] = useState<GameSettings>({ imposterCount: 1, imposterHint: "nothing", discussionOrder: "random", jesterEnabled: false, timerEnabled: false, timerSeconds: 120 });
   const [timeLeft, setTimeLeft] = useState(120);
   const [newWord, setNewWord] = useState("");
   const [newTheme, setNewTheme] = useState("");
@@ -345,7 +352,7 @@ const WordImposter = () => {
   const [wordPackMode, setWordPackMode] = useState<"mixed" | "default-only" | "custom-only">("mixed");
   
   // Game state
-  const [assignments, setAssignments] = useState<{ name: string; isImposter: boolean; text: string }[]>([]);
+  const [assignments, setAssignments] = useState<PlayerAssignment[]>([]);
   const [revealIndex, setRevealIndex] = useState(0);
   const [cardRevealed, setCardRevealed] = useState(false);
   const [animKey, setAnimKey] = useState(0);
@@ -463,6 +470,10 @@ const WordImposter = () => {
 
     const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
     const imposters = new Set(shuffledPlayers.slice(0, validImposterCount));
+    const jesterCandidates = shuffledPlayers.filter((name) => !imposters.has(name));
+    const jesterName = settings.jesterEnabled && jesterCandidates.length > 0
+      ? jesterCandidates[Math.floor(Math.random() * jesterCandidates.length)]
+      : null;
 
     const getImposterText = () => {
       switch (settings.imposterHint) {
@@ -472,10 +483,18 @@ const WordImposter = () => {
       }
     };
 
-    const assigned = players.map((name) => ({
+    const assigned: PlayerAssignment[] = players.map((name) => ({
       name,
-      isImposter: imposters.has(name),
-      text: imposters.has(name) ? getImposterText() : `Your word:\n${wordData.word}`,
+      role: imposters.has(name)
+        ? "imposter"
+        : name === jesterName
+          ? "jester"
+          : "crewmate",
+      text: imposters.has(name)
+        ? getImposterText()
+        : name === jesterName
+          ? `You are the JESTER!\nYour word: ${wordData.word}\nGoal: Get voted out to win.`
+          : `Your word:\n${wordData.word}`,
     }));
 
     setAssignments(assigned);
@@ -557,8 +576,14 @@ const WordImposter = () => {
 
     setEliminatedPlayers(nextEliminated);
 
+    if (votedOutPlayer?.role === "jester") {
+      setRevealedWords(false);
+      setPhase("jester-win");
+      return;
+    }
+
     const remainingImposters = assignments.filter(
-      (a) => a.isImposter && !nextEliminated.includes(a.name)
+      (a) => a.role === "imposter" && !nextEliminated.includes(a.name)
     ).length;
 
     if (remainingImposters === 0) {
@@ -695,6 +720,23 @@ const WordImposter = () => {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="bg-card rounded-2xl border border-border p-5 mb-8">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.jesterEnabled}
+                    onChange={(e) => setSettings((s) => ({ ...s, jesterEnabled: e.target.checked }))}
+                    className="w-4 h-4 rounded"
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-sm">Enable Jester Role</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Jester sees the real word and wins instantly if voted out.
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {/* Timer Setting */}
@@ -880,13 +922,19 @@ const WordImposter = () => {
             ) : (
               <>
                 <div className={`rounded-2xl border-2 p-8 mb-8 ${
-                  current.isImposter
+                  current.role === "imposter"
                     ? "border-destructive/40 bg-destructive/5"
+                    : current.role === "jester"
+                      ? "border-amber-500/40 bg-amber-500/5"
                     : "border-primary/30 bg-primary/5"
                 }`}>
                   {current.text.split("\n").map((line, i) => (
                     <p key={i} className={`${i === 0 ? "font-display text-2xl font-bold mb-2" : "text-lg font-semibold"} ${
-                      current.isImposter ? "text-destructive" : "text-primary"
+                      current.role === "imposter"
+                        ? "text-destructive"
+                        : current.role === "jester"
+                          ? "text-amber-500"
+                          : "text-primary"
                     }`}>
                       {line}
                     </p>
@@ -907,6 +955,7 @@ const WordImposter = () => {
   // Discussion phase
   if (phase === "discussion") {
     const queue = discussionQueue.length > 0 ? discussionQueue : buildDiscussionQueue(currentGameDiscussionSeedRef.current);
+    const hasActiveJester = assignments.some((a) => a.role === "jester" && !eliminatedPlayers.includes(a.name));
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -929,6 +978,11 @@ const WordImposter = () => {
             <p className="text-xs text-muted-foreground font-mono mb-4">
               {validImposterCount} imposter{validImposterCount > 1 ? "s" : ""} among {players.length} players
             </p>
+            {hasActiveJester && (
+              <p className="text-xs text-amber-500 font-mono mb-4">
+                Jester is in play: they win if voted out.
+              </p>
+            )}
 
             {queue.length > 0 && (
               <div className="bg-card border border-border rounded-xl p-4 mb-6 text-left">
@@ -963,8 +1017,9 @@ const WordImposter = () => {
     const activePlayers = assignments.filter((a) => !eliminatedPlayers.includes(a.name));
     const mostVoted = findMostVoted();
     const remainingImposters = assignments.filter(
-      (a) => a.isImposter && !eliminatedPlayers.includes(a.name)
+      (a) => a.role === "imposter" && !eliminatedPlayers.includes(a.name)
     ).length;
+    const hasActiveJester = assignments.some((a) => a.role === "jester" && !eliminatedPlayers.includes(a.name));
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -985,6 +1040,11 @@ const WordImposter = () => {
             <p className="text-xs text-muted-foreground font-mono mb-6">
               {remainingImposters} imposter{remainingImposters > 1 ? "s" : ""} remaining
             </p>
+            {hasActiveJester && (
+              <p className="text-xs text-amber-500 font-mono mb-6">
+                Warning: if the Jester gets voted out, Jester wins instantly.
+              </p>
+            )}
 
             <div className="space-y-2 mb-8">
               {activePlayers.map((player) => (
@@ -1016,9 +1076,10 @@ const WordImposter = () => {
   // Vote-out confirmation phase
   if (phase === "vote-out") {
     const votedOutPlayer = assignments.find((a) => a.name === selectedVoteOut);
-    const isImposter = votedOutPlayer?.isImposter || false;
+    const isImposter = votedOutPlayer?.role === "imposter";
+    const isJester = votedOutPlayer?.role === "jester";
     const remainingImposters = assignments.filter(
-      (a) => a.isImposter && !eliminatedPlayers.includes(a.name) && a.name !== selectedVoteOut
+      (a) => a.role === "imposter" && !eliminatedPlayers.includes(a.name) && a.name !== selectedVoteOut
     ).length;
 
     return (
@@ -1044,7 +1105,11 @@ const WordImposter = () => {
               Vote to eliminate this player?
             </p>
 
-            {isImposter ? (
+            {isJester ? (
+              <p className="text-xs font-mono text-amber-500 mb-6">
+                Special role! If this player is eliminated, the Jester wins immediately.
+              </p>
+            ) : isImposter ? (
               <p className="text-xs font-mono text-destructive mb-6">
                 Correct guess. {remainingImposters} imposter{remainingImposters !== 1 ? "s" : ""} will remain after this elimination.
               </p>
@@ -1056,7 +1121,9 @@ const WordImposter = () => {
 
             <div className="space-y-3">
               <Button size="xl" onClick={confirmVoteOut} className={`w-full ${
-                isImposter
+                isJester
+                  ? "bg-amber-500/15 text-amber-500 hover:bg-amber-500/25 border border-amber-500/20"
+                  : isImposter
                   ? "bg-destructive/15 text-destructive hover:bg-destructive/25 border border-destructive/20"
                   : "bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20"
               }`}>
@@ -1075,7 +1142,7 @@ const WordImposter = () => {
   // Result phase - imposter revealed
   if (phase === "result") {
     const eliminatedImposters = assignments.filter(
-      (a) => a.isImposter && eliminatedPlayers.includes(a.name)
+      (a) => a.role === "imposter" && eliminatedPlayers.includes(a.name)
     );
 
     return (
@@ -1142,9 +1209,67 @@ const WordImposter = () => {
   }
 
   // Game over phase
+  if (phase === "jester-win") {
+    const jester = assignments.find((a) => a.role === "jester");
+
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex items-center gap-3 px-4 pt-6 pb-4">
+          <h1 className="font-display text-xl font-bold">Game Over</h1>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center px-6 pb-12">
+          <div className="text-center max-w-sm w-full" style={{ animation: "slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/15 text-amber-500 flex items-center justify-center mx-auto mb-6">
+              <Eye className="w-8 h-8" />
+            </div>
+            <h2 className="font-display text-2xl font-bold mb-2">Jester Wins!</h2>
+            <p className="text-muted-foreground text-sm mb-6 max-w-xs mx-auto">
+              {jester?.name ?? "The Jester"} got voted out and steals the victory.
+            </p>
+
+            {!revealedWords && (
+              <div className="bg-card rounded-2xl border-2 border-border p-6 mb-8">
+                <p className="text-muted-foreground text-xs font-mono mb-3">MYSTERY WORD</p>
+                <p className="text-2xl font-bold text-muted-foreground">?????</p>
+                <p className="text-xs text-muted-foreground mt-3">Click below to reveal</p>
+              </div>
+            )}
+
+            {revealedWords && currentWord && (
+              <div className="bg-card rounded-2xl border-2 border-primary/30 p-6 mb-8">
+                <p className="text-muted-foreground text-xs font-mono mb-2">THE WORD WAS:</p>
+                <p className="font-display text-3xl font-bold text-primary mb-4">{currentWord.word}</p>
+                <div className="text-left space-y-2 text-sm">
+                  <p><span className="font-semibold">Theme:</span> {currentWord.theme}</p>
+                  <p><span className="font-semibold">Imposter clue word:</span> {currentWord.similar}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {!revealedWords && (
+                <Button size="xl" onClick={() => setRevealedWords(true)} className="w-full bg-primary/15 text-primary hover:bg-primary/25 border border-primary/20">
+                  <Eye className="w-5 h-5" /> Reveal Words
+                </Button>
+              )}
+              <Button size="lg" onClick={startGame} className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80">
+                <RotateCcw className="w-4 h-4" /> Play Again
+              </Button>
+              <Button size="lg" variant="outline" onClick={resetGame} className="w-full">
+                <ArrowLeft className="w-4 h-4" /> Back to Setup
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Game over phase
   if (phase === "game-over") {
     const remainingImposters = assignments.filter(
-      (a) => a.isImposter && !eliminatedPlayers.includes(a.name)
+      (a) => a.role === "imposter" && !eliminatedPlayers.includes(a.name)
     );
 
     return (

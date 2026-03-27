@@ -16,6 +16,9 @@ import Werewolf from "./pages/Werewolf.tsx";
 import PassTheHeat from "./pages/PassTheHeat.tsx";
 import CalloutClash from "./pages/CalloutClash.tsx";
 import ChainReaction from "./pages/ChainReaction.tsx";
+import PoisonCandy from "./pages/PoisonCandy.tsx";
+import GuessTheNumber from "./pages/GuessTheNumber.tsx";
+import StopTheTimer from "./pages/StopTheTimer.tsx";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +40,9 @@ const App = () => (
           <Route path="/pass-the-heat" element={<PassTheHeat />} />
           <Route path="/vote-or-sip" element={<CalloutClash />} />
           <Route path="/chain-reaction" element={<ChainReaction />} />
+          <Route path="/poison-candy" element={<PoisonCandy />} />
+          <Route path="/guess-the-number" element={<GuessTheNumber />} />
+          <Route path="/stop-the-timer" element={<StopTheTimer />} />
           <Route path="/socials" element={<Socials />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

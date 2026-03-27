@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Flame, MessageCircle, HelpCircle, Zap, Users, ChevronRight, EyeOff, Search, Star, Infinity as InfinityIcon, Moon, Vote, Bomb, Shield, Info, X } from "lucide-react";
+import { Flame, MessageCircle, HelpCircle, Zap, Users, ChevronRight, EyeOff, Search, Star, Infinity as InfinityIcon, Moon, Vote, Bomb, Shield, Info, X, Skull, Hash, Timer } from "lucide-react";
 
 const FAVORITE_GAMES_STORAGE_KEY = "favorite_games";
 
@@ -185,6 +185,39 @@ const games: GameItem[] = [
     path: "/infinite-tic-tac-toe",
     category: "competitive",
     tags: ["competitive", "2 players"],
+  },
+  {
+    title: "Guess The Number",
+    description: "2-player duel. One sets a secret number, the other races to guess with high-low hints.",
+    players: "2 players",
+    icon: <Hash className="w-6 h-6" />,
+    colorClass: "bg-yellow-500/15 text-yellow-400",
+    glowClass: "hover:shadow-yellow-400/15",
+    path: "/guess-the-number",
+    category: "competitive",
+    tags: ["competitive", "2 players"],
+  },
+  {
+    title: "Stop The Timer",
+    description: "Random target time. Each player starts and stops the timer once; lowest difference wins.",
+    players: "2+ players",
+    icon: <Timer className="w-6 h-6" />,
+    colorClass: "bg-yellow-500/15 text-yellow-400",
+    glowClass: "hover:shadow-yellow-400/15",
+    path: "/stop-the-timer",
+    category: "competitive",
+    tags: ["competitive", "reflex"],
+  },
+  {
+    title: "Poison Candy",
+    description: "Pick from a shared candy board. Poison knocks players out until one survives.",
+    players: "2+ players",
+    icon: <Skull className="w-6 h-6" />,
+    colorClass: "bg-yellow-500/15 text-yellow-400",
+    glowClass: "hover:shadow-yellow-400/15",
+    path: "/poison-candy",
+    category: "competitive",
+    tags: ["competitive", "elimination"],
   },
   {
     title: "Werewolf",

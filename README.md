@@ -12,7 +12,7 @@ https://javen05.github.io/bonding_games/
 
 ## Features
 
-- 10 playable party games:
+- 13 playable party games:
   - Truth or Dare
   - Never Have I Ever
   - Would You Rather
@@ -23,6 +23,9 @@ https://javen05.github.io/bonding_games/
   - Pass The Heat
   - Callout Clash
   - Chain Reaction
+  - Poison Candy
+  - Guess The Number
+  - Stop The Timer
 - Home page game discovery improvements:
   - Search by title, description, and tags
   - Category filters (Social, Callout, Deduction, Competitive, Chaos)
@@ -65,6 +68,25 @@ https://javen05.github.io/bonding_games/
 - Chain Reaction:
   - Escalating rules/challenges format for chaotic rounds
   - Custom social/drinking questions, rules, and penalties
+
+- Word Imposter:
+  - Optional Jester role with unique win condition
+  - Expanded role reveal and elimination flow
+
+- Poison Candy:
+  - Configurable board size and poison count per player
+  - Poison placement modes: Random (game-generated) or Player (manual private selection)
+  - Turn-order modes: Fixed, Random, Alternate
+  - End-of-round reveal tools: kill log and board reveal popup
+
+- Guess The Number:
+  - 2-player head-to-head duel mode
+  - Configurable number range
+  - First-turn modes: Random, Alternate, Democratic (Rock/Paper/Scissors)
+
+- Stop The Timer:
+  - 2+ player timing challenge with random target time
+  - Results include winner accuracy percentage
 
 ## Getting Started
 
